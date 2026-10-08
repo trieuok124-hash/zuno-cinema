@@ -1,1 +1,2 @@
-# No redirect rules. Cloudflare handles root index.html automatically.
+# SPA deep links: serve the app shell on hard refresh.
+/movie/* /index.html 200
