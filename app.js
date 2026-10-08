@@ -13,7 +13,7 @@ function play(source,serverId){const generation=++playGeneration;clearPlayer();c
  v.onerror=()=>explain("Không tải được video: mã lỗi "+(v.error?.code||"không xác định")+".");
  v.onended=nextEpisode;
  const startPlayback=()=>{if(generation!==playGeneration)return;v.play().catch(e=>{if(e.name!=="NotAllowedError"&&e.name!=="AbortError")explain("Không tự phát được: "+e.message)})};
- if(isHls&&v.canPlayType("application/vnd.apple.mpegurl")){v.src=playbackUrl;v.addEventListener("loadedmetadata",startPlayback,{once:true});startPlayback()}
+ if(isHls&&!window.Hls?.isSupported()&&v.canPlayType("application/vnd.apple.mpegurl")){v.src=playbackUrl;v.addEventListener("loadedmetadata",startPlayback,{once:true});startPlayback()}
  else if(isHls&&window.Hls?.isSupported()){
    let recovered=false;
    hls=new window.Hls({enableWorker:true,maxBufferLength:20});
