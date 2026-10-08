@@ -1,0 +1,4 @@
+name = "zuno-hls-relay"
+main = "src/index.js"
+compatibility_date = "2026-10-08"
+workers_dev = true
