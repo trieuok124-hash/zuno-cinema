@@ -5,7 +5,9 @@ function play(source,serverId){const generation=++playGeneration;clearPlayer();c
  const controls=el("div");controls.style.cssText="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px";const open=el("a","","↗ Mở nguồn trực tiếp");open.href=u.href;open.target="_blank";open.rel="noopener noreferrer";open.style.cssText="display:inline-block;padding:8px 12px;border-radius:8px;background:#26334d;color:#fff;text-decoration:none";controls.append(open);const next=el("button","","Thử server tiếp theo →");next.type="button";next.style.cssText="padding:8px 12px;border:0;border-radius:8px;background:#ef4265;color:white;cursor:pointer";next.onclick=()=>{const bs=$("servers").querySelectorAll("button");if(bs.length>1)bs[(activeServerIndex+1)%bs.length].click()};if($("servers").children.length>1)controls.append(next);status.append(controls);
  const explain=(message)=>{if(generation!==playGeneration)return;const note=el("span","",message+" Bạn có thể mở nguồn trực tiếp hoặc thử server khác.");note.style.cssText="display:block;margin-top:8px;color:#f9b6c4";const old=status.querySelector("span");if(old)old.remove();status.append(note)};
  const isHls=/\.m3u8(?:$|[?#])/i.test(u.href);
- const isEmbed=/youtube\.com|youtu\.be|vimeo\.com|\/embed\/|\/play-fb-v8\/play\//i.test(u.href);
+ // StreamRPT URLs already open in their own player. Embed that player directly instead of treating their .m3u8 paths as standard HLS manifests.
+ const isSourcePlayer=/(^|\.)streamrpt\.xyz$/i.test(u.hostname);
+ const isEmbed=isSourcePlayer||/youtube\.com|youtu\.be|vimeo\.com|\/embed\/|\/play-fb-v8\/play\//i.test(u.href);
  const relay=HLS_RELAY_BASE&&serverId&&isHls?HLS_RELAY_BASE.replace(/\/$/,"")+"/hls/"+encodeURIComponent(serverId):null;
  const playbackUrl=relay||u.href;
  if(isEmbed){const frame=el("iframe");frame.src=u.href;frame.title="ZUNO video player";frame.allow="autoplay; encrypted-media; picture-in-picture; fullscreen";frame.allowFullscreen=true;frame.referrerPolicy="strict-origin-when-cross-origin";$("player").append(frame);return}
