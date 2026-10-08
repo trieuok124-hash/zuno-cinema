@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "ZUNO Import Assistant",
+  "version": "1.0.0",
+  "description": "Read public movie metadata and episode player URLs from pages you can access; export reviewable JSON.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://hhtm.my/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
