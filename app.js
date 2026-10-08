@@ -4,12 +4,31 @@ function renderServers(){clearPlayer();$("servers").replaceChildren();const sour
 function play(source,serverId){const generation=++playGeneration;clearPlayer();const status=$("player-status");status.replaceChildren();let u;try{u=new globalThis.URL(source)}catch{placeholder("Đường dẫn video không hợp lệ");return}if(!["http:","https:"].includes(u.protocol)){placeholder("Nguồn video không hợp lệ");return}
  const controls=el("div");controls.style.cssText="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px";const open=el("a","","↗ Mở nguồn trực tiếp");open.href=u.href;open.target="_blank";open.rel="noopener noreferrer";open.style.cssText="display:inline-block;padding:8px 12px;border-radius:8px;background:#26334d;color:#fff;text-decoration:none";controls.append(open);const next=el("button","","Thử server tiếp theo →");next.type="button";next.style.cssText="padding:8px 12px;border:0;border-radius:8px;background:#ef4265;color:white;cursor:pointer";next.onclick=()=>{const bs=$("servers").querySelectorAll("button");if(bs.length>1)bs[(activeServerIndex+1)%bs.length].click()};if($("servers").children.length>1)controls.append(next);status.append(controls);
  const explain=(message)=>{if(generation!==playGeneration)return;const note=el("span","",message+" Bạn có thể mở nguồn trực tiếp hoặc thử server khác.");note.style.cssText="display:block;margin-top:8px;color:#f9b6c4";const old=status.querySelector("span");if(old)old.remove();status.append(note)};
- const relay=HLS_RELAY_BASE&&serverId&&/\.m3u8(?:$|[?#])/i.test(u.href)?HLS_RELAY_BASE.replace(/\/$/,"")+"/hls/"+encodeURIComponent(serverId):null;const playbackUrl=relay||u.href;const hlsSource=/\.m3u8(?:$|[?#])/i.test(u.href),iframeSource=/youtube\.com|youtu\.be|vimeo\.com|\/embed\//i.test(u.href);if(iframeSource){const frame=el("iframe");frame.src=u.href;frame.title="ZUNO video player";frame.allow="autoplay; encrypted-media; picture-in-picture; fullscreen";frame.allowFullscreen=true;frame.referrerPolicy="strict-origin-when-cross-origin";$("player").append(frame);return}
- const v=el("video");v.controls=true;v.playsInline=true;v.autoplay=true;v.preload="metadata";$("player").append(v);v.onerror=()=>explain("Trình duyệt không thể tải video (mạng, CORS hoặc nguồn hết hạn).");v.onended=nextEpisode;
- if(hlsSource&&v.canPlayType("application/vnd.apple.mpegurl"))v.src=playbackUrl;
- else if(hlsSource&&window.Hls?.isSupported()){hls=new window.Hls({enableWorker:true});hls.on(window.Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;const detail=d.details||d.type||"unknown";explain("HLS lỗi: "+detail);if(d.type===window.Hls.ErrorTypes.MEDIA_ERROR){try{hls.recoverMediaError()}catch{}}});hls.loadSource(playbackUrl);hls.attachMedia(v)}
- else if(hlsSource){explain("Trình duyệt không hỗ trợ HLS trong trang web.");return}
- else v.src=u.href;
- v.play().catch(e=>{if(e.name!=="NotAllowedError")explain("Không tự phát được: "+e.message)});
+ const isHls=/\.m3u8(?:$|[?#])/i.test(u.href);
+ const isEmbed=/youtube\.com|youtu\.be|vimeo\.com|\/embed\/|\/play-fb-v8\/play\//i.test(u.href);
+ const relay=HLS_RELAY_BASE&&serverId&&isHls?HLS_RELAY_BASE.replace(/\/$/,"")+"/hls/"+encodeURIComponent(serverId):null;
+ const playbackUrl=relay||u.href;
+ if(isEmbed){const frame=el("iframe");frame.src=u.href;frame.title="ZUNO video player";frame.allow="autoplay; encrypted-media; picture-in-picture; fullscreen";frame.allowFullscreen=true;frame.referrerPolicy="strict-origin-when-cross-origin";$("player").append(frame);return}
+ const v=el("video");v.controls=true;v.playsInline=true;v.autoplay=true;v.preload="metadata";$("player").append(v);
+ v.onerror=()=>explain("Không tải được video: mã lỗi "+(v.error?.code||"không xác định")+".");
+ v.onended=nextEpisode;
+ const startPlayback=()=>{if(generation!==playGeneration)return;v.play().catch(e=>{if(e.name!=="NotAllowedError"&&e.name!=="AbortError")explain("Không tự phát được: "+e.message)})};
+ if(isHls&&v.canPlayType("application/vnd.apple.mpegurl")){v.src=playbackUrl;v.addEventListener("loadedmetadata",startPlayback,{once:true});startPlayback()}
+ else if(isHls&&window.Hls?.isSupported()){
+   let recovered=false;
+   hls=new window.Hls({enableWorker:true,maxBufferLength:20});
+   const instance=hls;
+   instance.on(window.Hls.Events.MANIFEST_PARSED,startPlayback);
+   instance.on(window.Hls.Events.ERROR,(_,d)=>{
+     if(!d.fatal||generation!==playGeneration)return;
+     const detail=d.details||d.type||"unknown";
+     if(d.type===window.Hls.ErrorTypes.MEDIA_ERROR&&!recovered){recovered=true;try{instance.recoverMediaError();return}catch{}}
+     explain("HLS lỗi: "+detail+(d.response?.code?" (HTTP "+d.response.code+")":""));
+     if(d.type===window.Hls.ErrorTypes.NETWORK_ERROR||d.type===window.Hls.ErrorTypes.MEDIA_ERROR){try{instance.stopLoad()}catch{}}
+   });
+   instance.attachMedia(v);
+   instance.on(window.Hls.Events.MEDIA_ATTACHED,()=>{if(generation===playGeneration)instance.loadSource(playbackUrl)});
+ }else if(isHls){explain("Trình duyệt không hỗ trợ HLS trong trang web.")}
+ else{v.src=playbackUrl;v.addEventListener("loadedmetadata",startPlayback,{once:true});startPlayback()}
 }
 function nextEpisode(){const es=episodes();const i=es.findIndex(x=>x.id===currentEpisode?.id);if(i>=0&&i<es.length-1){currentEpisode=es[i+1];epPage=Math.floor((i+1)/EP_SIZE);renderEpisodes();renderServers()}}function updateFavButton(){$("watch-favorite").textContent=(isFav(active.id)?"♥ Đã yêu thích":"♡ Thêm yêu thích")}function goHome(push=true){clearPlayer();active=null;currentEpisode=null;$("catalog").hidden=false;$("watch").hidden=true;if(push)history.pushState({},"","/");window.scrollTo({top:0,behavior:"instant"})}function chooseFilter(f){favoritesOnly=f==="favorites";filter=favoritesOnly?"all":f;document.querySelectorAll("[data-filter]").forEach(b=>b.classList.toggle("selected",b.dataset.filter===f));goHome();renderMovies();$("movies-section").scrollIntoView({behavior:"smooth"})}function openSearch(){goHome();$("search-overlay").hidden=false;$("search").focus()}document.querySelectorAll("[data-filter]").forEach(b=>b.onclick=()=>chooseFilter(b.dataset.filter));document.querySelectorAll("[data-genre]").forEach(a=>a.onclick=e=>{e.preventDefault();chooseFilter(a.dataset.genre)});$("search-toggle").onclick=openSearch;$("mobile-search").onclick=openSearch;$("search-close").onclick=()=>{$("search-overlay").hidden=true;$("search").value="";renderMovies()};$("search").oninput=()=>{if(active)goHome();renderMovies()};$("favorites-toggle").onclick=()=>chooseFilter("favorites");$("mobile-favorites").onclick=()=>chooseFilter("favorites");$("mobile-home").onclick=()=>goHome();$("mobile-movies").onclick=()=>chooseFilter("all");$("reset-filter").onclick=()=>{if($("search").value)$("search").value="";chooseFilter("all")};$("back").onclick=()=>goHome();$("episode-search").oninput=()=>{epPage=0;renderEpisodes()};$("watch-favorite").onclick=()=>active&&toggleFav(active.id);$("next-episode").onclick=nextEpisode;window.onpopstate=()=>{const id=decodeURIComponent(location.pathname.match(/^\/movie\/(.+)/)?.[1]||"");if(id)openMovie(id,false);else goHome(false)};load();
