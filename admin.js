@@ -10,17 +10,24 @@ let importedScan=null;
 const pick=(o,...keys)=>{for(const k of keys)if(o?.[k]!==undefined&&o[k]!==null)return o[k];return undefined};
 const validSource=u=>{try{const p=new globalThis.URL(String(u));return ["https:","http:"].includes(p.protocol)?p.href:null}catch{return null}};
 function normalizeScan(raw){
- const es=pick(raw,"episodes","Episodes");if(!Array.isArray(es)||es.length>300)throw Error("JSON cần có danh sách Episodes (tối đa 300 tập)");
+ const root=Array.isArray(raw)?{episodes:raw}:raw?.movie||raw?.Movie||raw?.data?.movie||raw?.Data?.Movie||raw;
+ let es=pick(root,"episodes","Episodes","episode_list","episodeList","EpisodeList","taps","Taps");
+ if(!Array.isArray(es))es=pick(raw,"episodes","Episodes","items","Items");
+ if(!Array.isArray(es))throw Error("Không tìm thấy danh sách tập. Hãy gửi file JSON để mình bổ sung đúng cấu trúc.");
+ if(es.length>1000)throw Error("Tối đa 1000 tập mỗi lần");
  const episodes=es.map((e,i)=>{
-  const position=Number(pick(e,"position","Position"))||i+1;
-  const name=String(pick(e,"name","Name")||"Tập "+position);
-  const sr=pick(e,"servers","Servers");
-  const sources=Array.isArray(sr)&&sr.length?sr.map((v,j)=>typeof v==="string"?{name:"Server "+(j+1),url:v}:{name:String(pick(v,"name","Name")||"Server "+(j+1)),url:pick(v,"url","Url")}):[];
-  const pu=pick(e,"player_urls","PlayerUrls");if(Array.isArray(pu))for(const u of pu)sources.push({name:"Nguồn phát",url:u});
+  const position=Number(pick(e,"position","Position","number","Number","index","Index","episode_number","EpisodeNumber"))||i+1;
+  const name=String(pick(e,"name","Name","title","Title")||"Tập "+position);
+  let sr=pick(e,"servers","Servers","sources","Sources","links","Links","server_list","ServerList");
+  if(sr&&typeof sr==="object"&&!Array.isArray(sr))sr=Object.entries(sr).map(([name,url])=>({name,url}));
+  const sources=Array.isArray(sr)?sr.map((v,j)=>typeof v==="string"?{name:"Server "+(j+1),url:v}:{name:String(pick(v,"name","Name","server","Server")||"Server "+(j+1)),url:pick(v,"url","Url","video_url","VideoUrl","src","Src","link","Link","player_url","PlayerUrl")}):[];
+  const pu=pick(e,"player_urls","PlayerUrls","video_urls","VideoUrls","urls","Urls");
+  if(Array.isArray(pu))for(const u of pu)sources.push({name:"Nguồn phát",url:u});
+  for(const key of ["url","Url","video_url","VideoUrl","src","Src","player_url","PlayerUrl","videoUrl"]){const u=e?.[key];if(typeof u==="string")sources.push({name:"Nguồn phát",url:u})}
   const unique=new Set();const servers=sources.map(x=>({name:x.name,url:validSource(x.url)})).filter(x=>x.url&&!unique.has(x.url)&&unique.add(x.url));
   return{position,name,servers};
  });
- return{title:String(pick(raw,"title","Title")||"").trim(),poster:String(pick(raw,"poster_url","PosterUrl")||""),description:String(pick(raw,"description","Description")||""),episodes};
+ return{title:String(pick(root,"title","Title","name","Name")||pick(raw,"title","Title")||"").trim(),poster:String(pick(root,"poster_url","PosterUrl","poster","Poster","image","Image")||""),description:String(pick(root,"description","Description","summary","Summary")||""),episodes};
 }
 $("import-json").onchange=async e=>{const file=e.target.files?.[0];$("import-json-episodes").disabled=true;importedScan=null;if(!file)return;try{if(file.size>5e6)throw Error("Tệp quá lớn (tối đa 5 MB)");importedScan=normalizeScan(JSON.parse(await file.text()));const d=importedScan;$("import-title").value=d.title;$("import-poster").value=d.poster;$("import-description").value=d.description;$("import-preview").hidden=false;const total=d.episodes.reduce((n,e)=>n+e.servers.length,0);$("import-json-status").textContent="Đã đọc "+d.episodes.length+" tập, "+total+" URL nguồn phát. Nhấn nút bên dưới để tạo phim (nếu chưa có), nhập tập và server. Các URL chưa được xác minh phát được.";$("import-json-episodes").disabled=false;$("import-json-episodes").textContent="Nhập phim + toàn bộ tập & server"}catch(err){$("import-json-status").textContent="Không đọc được JSON: "+err.message}};
 $("import-json-episodes").onclick=async()=>{if(!importedScan)return;const d=importedScan,log=$("import-json-status"),button=$("import-json-episodes");let movieId=$("import-target").value;const title=$("import-title").value.trim();if(!movieId&&!title)return log.textContent="JSON chưa có tên phim. Hãy nhập tên phim trước.";if(!confirm("Nhập "+d.episodes.length+" tập và "+d.episodes.reduce((n,e)=>n+e.servers.length,0)+" URL? Phim trùng tên sẽ được dùng lại; tập/server trùng sẽ bỏ qua."))return;button.disabled=true;let addedEpisodes=0,addedServers=0,skipped=0;const failures=[];try{
