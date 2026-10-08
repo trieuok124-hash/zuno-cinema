@@ -19,6 +19,13 @@ function renderServers(){
 function play(source){
  const token=++playerToken;clearPlayer();const status=$("player-status");status.replaceChildren();
  const u=normalizeSource(source);if(!u){placeholder("URL không hợp lệ hoặc nguồn chưa được lưu");status.textContent="Không đọc được URL nguồn.";return}
+ const hlsUrl=/\.m3u8(?:$|[?#])/i.test(u.href);
+ if(hlsUrl){
+  const nativeButton=el("button","","▶ Thử phát bằng Cốc Cốc");nativeButton.type="button";
+  nativeButton.style.cssText="padding:9px 12px;margin:8px 8px 8px 0;border-radius:8px;background:#ef4265;color:white;border:0;cursor:pointer";
+  nativeButton.onclick=()=>{if(token!==playerToken)return;clearPlayer();const frame=el("iframe");frame.src=u.href;frame.title="Phát HLS bằng trình duyệt";frame.allow="autoplay;fullscreen;picture-in-picture";frame.allowFullscreen=true;$("player").replaceChildren(frame);status.append(el("span",""," Đang thử mở HLS trực tiếp trong khung. Nếu trình duyệt không hỗ trợ, dùng nút Mở video trực tiếp."))};
+  status.append(nativeButton);
+ }
  const direct=el("a","","↗ Mở video trực tiếp");direct.href=u.href;direct.target="_blank";direct.rel="noopener noreferrer";direct.style.cssText="display:inline-block;margin:8px 0;padding:9px 12px;border-radius:8px;background:#26334d;color:#fff";status.append(direct);
  const hlsSource=/\.m3u8(?:$|[?#])/i.test(u.href),dashSource=/\.mpd(?:$|[?#])/i.test(u.href);
  const directVideo=/\.(mp4|webm|ogg|m4v)(?:$|[?#])/i.test(u.href);
@@ -32,7 +39,7 @@ function play(source){
  $("player").replaceChildren(video);
  if(hlsSource){
   if(video.canPlayType("application/vnd.apple.mpegurl")){video.src=u.href;return}
-  if(window.Hls&&window.Hls.isSupported()){playerHls=new window.Hls({enableWorker:true});playerHls.loadSource(u.href);playerHls.attachMedia(video);playerHls.on(window.Hls.Events.ERROR,(_,data)=>{if(data.fatal&&token===playerToken)status.append(el("span",""," Nguồn HLS bị lỗi hoặc máy chủ chặn truy cập từ ZUNO."))});return}
+  if(window.Hls&&window.Hls.isSupported()){playerHls=new window.Hls({enableWorker:true});playerHls.loadSource(u.href);playerHls.attachMedia(video);playerHls.on(window.Hls.Events.ERROR,(_,data)=>{if(data.fatal&&token===playerToken){const details=[data.type,data.details,data.response?.code].filter(Boolean).join(" / ");status.append(el("span",""," HLS lỗi: "+details+". Bạn có thể thử nút phát bằng Cốc Cốc hoặc mở trực tiếp."))}});return}
   status.append(el("span",""," Trình duyệt chưa tải được thư viện HLS."));return
  }
  if(dashSource){status.append(el("span",""," Nguồn DASH cần trình phát DASH riêng. Hãy dùng Mở video trực tiếp."));return}
