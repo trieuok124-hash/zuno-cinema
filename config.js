@@ -2,4 +2,4 @@
 export const SUPABASE_URL="https://tpvcbhcneysphrdspslx.supabase.co";
 export const SUPABASE_KEY="sb_publishable_K1XLljhfdZ4UdkGQRdeOYQ_exm8QdbQ";
 // Set after deploying hls-relay Worker, e.g. https://zuno-hls-relay.<account>.workers.dev
-export const HLS_RELAY_BASE="";
+export const HLS_RELAY_BASE="https://zuno-hls-relay.trieuhqph52915.workers.dev";
